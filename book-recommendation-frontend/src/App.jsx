@@ -9,6 +9,7 @@ import Home from './pages/Home';
 import BookDetail from './pages/BookDetail';
 import Favorites from './pages/Favorites';
 import Profile from './pages/Profile';
+import Onboarding from './pages/Onboarding';
 
 // Redirects logged-in users away from /login and /signup
 const GuestRoute = ({ children }) => {
@@ -32,7 +33,7 @@ function AppRoutes() {
         {/* Public */}
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
-
+        <Route path="/onboarding" element={<Onboarding />} />
         {/* Protected */}
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/library" element={<ProtectedRoute><Home /></ProtectedRoute>} />

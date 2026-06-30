@@ -7,6 +7,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { UserContext } from '../context/UserContext';
+import { getAllBooks } from '../services/bookService';
 
 const API = 'http://localhost:5000';
 
@@ -14,7 +15,7 @@ const API = 'http://localhost:5000';
 const STATUS_LABELS = {
   want_to_read: { label: 'Want to Read', icon: '🔖', color: 'text-[#556B2F] bg-[#A3B18A]/20' },
   currently_reading: { label: 'Currently Reading', icon: '📖', color: 'text-[#B66A50] bg-[#B66A50]/10' },
-  finished: { label: 'Finished', icon: '✅', color: 'text-[#C89B3C] bg-[#C89B3C]/10' },
+  finished: { label: 'Finished', icon: '✅', color: 'text-[#C89B3C]/10' },
   did_not_finish: { label: 'Dropped', icon: '❌', color: 'text-[#6F4E37] bg-[#F3E6D0]' },
 };
 
@@ -22,17 +23,21 @@ const Profile = () => {
   const { user } = useContext(UserContext);
   const [statuses, setStatuses] = useState([]);
   const [favorites, setFavorites] = useState([]);
+  const [totalSystemBooks, setTotalSystemBooks] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
   // ─── LIVE BACKEND DATA REGISTERS SYNC ──────────────────────────────────────
   useEffect(() => {
     if (!user) return;
+    
     Promise.all([
       fetch(`${API}/api/reading-status/${user.id}`).then((r) => r.json()),
       fetch(`${API}/api/favorites/${user.id}`).then((r) => r.json()),
-    ]).then(([statusData, favData]) => {
+      getAllBooks().catch(() => [])
+    ]).then(([statusData, favData, booksData]) => {
       setStatuses(statusData.statuses || []);
-      setFavorites(favData.books || []);
+      setFavorites(favData.favorites || favData.books || []);
+      setTotalSystemBooks(booksData ? booksData.length : 0);
     }).catch((err) => {
       console.error('Archival diary sync error:', err);
     }).finally(() => setIsLoading(false));
@@ -92,7 +97,7 @@ const Profile = () => {
             {[
               { label: 'Completed', value: finished, icon: '✅', color: 'bg-[#C89B3C]/5 border-[#C89B3C]/10 text-[#C89B3C]' },
               { label: 'In Progress', value: reading, icon: '📖', color: 'bg-[#B66A50]/5 border-[#B66A50]/10 text-[#B66A50]' },
-              { label: 'Staged Shelf', value: wantToRead, icon: '🔖', color: 'bg-[#556B2F]/5 border-[#556B2F]/10 text-[#556B2F]' },
+              { label: 'Total Catalog', value: totalSystemBooks, icon: '🔖', color: 'bg-[#556B2F]/5 border-[#556B2F]/10 text-[#556B2F]' },
               { label: 'Vaulted Favorites', value: favorites.length, icon: '❤️', color: 'bg-[#6F4E37]/5 border-[#6F4E37]/10 text-[#B66A50]' },
             ].map((card) => (
               <div key={card.label} className={`rounded-xl border bg-[#FFFDF8] p-5 text-center transition-all duration-300 hover:shadow-xs ${card.color}`}>
@@ -149,7 +154,7 @@ const Profile = () => {
             <span className="text-4xl block mb-3 opacity-40">🪶</span>
             <p className="font-serif text-base font-bold text-[#3E3024]/60 italic">Your reading diary is silent.</p>
             <p className="font-sans text-xs text-[#3E3024]/40 font-medium mt-1">No books are currently under operational tracking flags.</p>
-            <Link to="/home" className="inline-block mt-5 px-5 py-2.5 bg-[#556B2F] text-[#F8F3EA] rounded-full font-sans text-xs font-bold uppercase tracking-wider hover:bg-[#435524] transition-colors shadow-xs">
+            <Link to="/library" className="inline-block mt-5 px-5 py-2.5 bg-[#556B2F] text-[#F8F3EA] rounded-full font-sans text-xs font-bold uppercase tracking-wider hover:bg-[#435524] transition-colors shadow-xs">
               Open Main Archive
             </Link>
           </div>

@@ -1,5 +1,5 @@
 /**
- * Favorites.jsx — BookWise Personal Bookshelf Cabinet (Final Alignment)
+ * Favorites.jsx — BookWise Personal Bookshelf Cabinet (Service Integrated)
  * Stack: React + Tailwind v4 + Soft CSS Shadows
  * Aesthetic: Your private premium mahogany book closet 
  */
@@ -8,6 +8,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { UserContext } from '../context/UserContext';
 import BookCard from '../components/bookcard/BookCard';
+import { getFavorites, removeFavorite } from '../services/bookService';
 
 const SkeletonCard = () => (
   <div className="bg-[#FFFDF8] rounded-2xl border border-[#3E3024]/10 p-4 space-y-4 animate-pulse">
@@ -28,22 +29,46 @@ const Favorites = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // ─── FETCH FAVORITES FROM SERVICE LAYER ───────────────────────────────────
   useEffect(() => {
     if (!user) return;
-    fetch(`http://localhost:5000/api/favorites/${user.id}`)
-      .then((r) => { 
-        if (!r.ok) throw new Error('Failed to load your personal shelf register.'); 
-        return r.json(); 
-      })
-      .then((d) => setBooks(d.books || []))
-      .catch((err) => setError(err.message))
-      .finally(() => setIsLoading(false));
+    
+    const loadFavorites = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        
+        // Load data cleanly using your new getFavorites service abstraction
+        const data = await getFavorites(user.id);
+        setBooks(data.favorites || data.books || d || []);
+      } catch (err) {
+        setError(err.message || 'Failed to load your personal shelf register.');
+        console.error('Favorites load error:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadFavorites();
   }, [user]);
 
-  // Handler to smoothly drop books off the virtual wood if untoggled directly from the cabinet
-  const handleFavoriteToggle = (bookId, isFav) => {
+  // ─── CONNECT HEART INTERACTION TO REMOVE FROM BACKEND SQLITE ─────────────
+  const handleFavoriteToggle = async (bookId, isFav) => {
     if (!isFav) {
+      // Optimistically remove from frontend shelf space for performance snappiness
       setBooks((prevBooks) => prevBooks.filter((b) => b.id !== bookId));
+      
+      try {
+        // Commit the deletion register operation cleanly to the SQLite instance
+        await removeFavorite(user.id, bookId);
+      } catch (err) {
+        console.error('Failed to commit favorite removal register modification:', err);
+        setError('Failed to update backend archive. Reloading configuration...');
+        
+        // Re-fetch state balances if database disconnect/errors occur to prevent desync
+        const data = await getFavorites(user.id).catch(() => ({}));
+        if (data) setBooks(data.favorites || data.books || []);
+      }
     }
   };
 
@@ -98,7 +123,7 @@ const Favorites = () => {
           </div>
         ) : (
           
-          /* ─── EMPTY CABINET STATE (As seen in image_a0e9bf.png) ───────────── */
+          /* ─── EMPTY CABINET STATE ────────────────────────────────────────── */
           <div className="flex flex-col items-center justify-center py-20 bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl p-8 max-w-md mx-auto text-center shadow-2xs relative overflow-hidden">
             <div className="absolute top-2 right-3 opacity-20 font-serif text-lg">✿</div>
             <div className="w-12 h-12 bg-[#F8F3EA] rounded-full flex items-center justify-center border border-[#3E3024]/5 mb-4">
@@ -111,7 +136,7 @@ const Favorites = () => {
             </p>
             
             <Link
-              to="/home"
+              to="/library"
               className="font-sans px-5 py-3 rounded-full bg-[#556B2F] text-[#F8F3EA] font-bold text-xs tracking-wider uppercase shadow-xs hover:bg-[#435524] transition-colors"
             >
               Explore Grand Archive

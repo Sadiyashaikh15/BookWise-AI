@@ -1,5 +1,5 @@
 /**
- * Login.jsx — BookWise Functional Auth Sanctuary Redesign (API Fixed)
+ * Login.jsx — BookWise Functional Auth Sanctuary Redesign (Full State & API Integration)
  * Stack: React + Tailwind v4 + Native CSS Keyframes
  * Integration: Live context management linked directly to your local API registers
  */
@@ -23,14 +23,14 @@ const DesignSystemTitle = ({ serifText, sansSub }) => (
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login } = useContext(UserContext); // Hooked back into your active context state architecture
+  const { login } = useContext(UserContext); // active context framework hook
   
   // Tab Management state
   const [activeTab, setActiveTab] = useState('login'); // 'login' | 'signup'
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Redesigned Form Bindings supporting cohesive single-state tracking
+  // Form Bindings supporting cohesive single-state tracking
   const [loginData, setLoginData] = useState({ email: '' });
   const [signupData, setSignupData] = useState({ name: '', email: '' });
 
@@ -44,7 +44,7 @@ const Login = () => {
     setSignupData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // ─── AUTHENTICATED ACCESS API FORM EXECUTION ─────────────────────────────────
+  // ─── AUTHENTICATED ACCESS API FORM EXECUTION (POST /api/login) ───────────────
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     
@@ -70,9 +70,14 @@ const Login = () => {
         return;
       }
 
+      // Save user session details directly into localized hardware registers
+      localStorage.setItem('bookwise_user', JSON.stringify(data.user));
+
       // Sync active tracking state through UserContext variables globally
       login(data.user);
-      navigate('/dashboard');
+      
+      // 🟢 Redirect cleanly to the onboarding affinity selection flow instead of raw dashboard
+      navigate('/onboarding');
     } catch (err) {
       setError('Could not connect to the server. Please ensure the backend is running.');
     } finally {
@@ -93,10 +98,6 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      // Connects directly to backend context endpoint patterns if required later
-      console.log('Sending new archive allocation to database registers...', signupData);
-      
-      // Simulate/Trigger temporary fallback creation logic matching login mechanics
       const response = await fetch('http://localhost:5000/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -106,10 +107,13 @@ const Login = () => {
       const data = await response.json();
 
       if (response.ok && data.success) {
+        localStorage.setItem('bookwise_user', JSON.stringify(data.user));
         login(data.user);
-        navigate('/dashboard');
+        
+        // 🟢 Route new readers straight into the affinity chamber onboarding matrix
+        navigate('/onboarding');
       } else {
-        // If profile doesn't exist yet, swap tabs cleanly for credential alignment
+        // Fallback tab alignment if route variations are restricted
         setActiveTab('login');
         setError('Shelf initialized cleanly! Enter email above to verify access.');
       }
@@ -271,7 +275,7 @@ const Login = () => {
           </form>
         )}
 
-        {/* Demo Fast Account Help Hint Box */}
+        {/* Quick Access Ledger Box */}
         <div className="mt-6 p-4 bg-[#F3E6D0]/40 border border-[#3E3024]/10 rounded-xl text-center">
           <p className="text-[10px] font-bold text-[#556B2F] uppercase tracking-wider mb-1">
             ✦ Quick Access Ledger Spot

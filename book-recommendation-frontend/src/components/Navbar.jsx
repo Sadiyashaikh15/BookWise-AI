@@ -53,7 +53,7 @@ const Navbar = () => {
             <>
               {[
                 { name: 'Dashboard', path: '/dashboard', icon: '📖' },
-                { name: 'Library', path: '/home', icon: '🪵' }, // Pointing to your Home.jsx file route
+                { name: 'Library', path: '/library', icon: '🪵' }, // Pointing to your Home.jsx file route
                 { name: 'Favorites', path: '/favorites', icon: '❤️' },
                 { name: 'Diary Profile', path: '/profile', icon: '🌸' },
               ].map((link) => (

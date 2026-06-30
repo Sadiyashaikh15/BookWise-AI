@@ -1,38 +1,42 @@
 /**
- * Home.jsx — BookWise Virtual Library Index Redesign (API Bound)
+ * Home.jsx — BookWise Virtual Library Index Redesign (API Bound via Service Layer)
  * Stack: React + Tailwind v4 + Soft CSS Micro-Interactions
- * Aesthetic: Walking down a cozy wooden bookstore aisle
+ * Aesthetic: Walking down a cozy wooden bookstore aisle with live filter registers & curations
  */
 
 import React, { useState, useEffect, useContext } from 'react';
 import BookCard from '../components/bookcard/BookCard';
 import { UserContext } from '../context/UserContext';
+import { getAllBooks, getRecommendations } from '../services/bookService';
 
 const Home = () => {
   const { user } = useContext(UserContext);
   const [books, setBooks] = useState([]);
   const [favorites, setFavorites] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRecLoading, setIsRecLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState(null);
   const [activeGenre, setActiveGenre] = useState('All');
 
-  // ─── LIVE BACKEND DATA SYNC PIPELINE ───────────────────────────────────────
+  // ─── LIVE BACKEND DATA SYNC PIPELINE VIA SERVICES ──────────────────────────
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const requests = [fetch('http://localhost:5000/api/books')];
-        if (user) requests.push(fetch(`http://localhost:5000/api/favorites/${user.id}`));
+        setIsLoading(true);
+        setError(null);
 
-        const results = await Promise.all(requests);
-        if (!results[0].ok) throw new Error('Failed to fetch books from server');
+        // Fetching clean structured data registers using your new bookService engine
+        const booksData = await getAllBooks();
+        setBooks(booksData || []);
 
-        const booksData = await results[0].json();
-        setBooks(booksData);
-
-        if (user && results[1]?.ok) {
-          const favData = await results[1].json();
-          setFavorites((favData.favorites || []).map((f) => f.id));
+        if (user) {
+          const response = await fetch(`http://localhost:5000/api/favorites/${user.id}`);
+          if (response.ok) {
+            const favData = await response.json();
+            setFavorites((favData.favorites || []).map((f) => f.id));
+          }
         }
       } catch (err) {
         setError(err.message);
@@ -44,23 +48,57 @@ const Home = () => {
     fetchData();
   }, [user]);
 
-  // Dynamic extract for available genres
+  // ─── LIVE RECOMMENDATIONS PIPELINE VIA SERVICES ────────────────────────────
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchUserRecommendations = async () => {
+      try {
+        setIsRecLoading(true);
+        // Fetch personalized books using user context via your core bookService
+        const recData = await getRecommendations(user.id);
+        const recList = recData.books || recData.recommendations || recData || [];
+        setRecommendations(recList.slice(0, 4)); // Isolate top 4 targeted books
+      } catch (err) {
+        console.error('Quiet curations fetch notice:', err.message);
+      } finally {
+        setIsRecLoading(false);
+      }
+    };
+
+    fetchUserRecommendations();
+  }, [user, activeGenre]); // Triggers fresh query balances on preference shifts
+
+  // Dynamic extract for available genres to generate the bookshelf tabs
   const genres = ['All', ...new Set(books.map((b) => b.genre).filter(Boolean))];
 
-  // Search logic match pipeline
+  // ─── STEP 3: LIVE CLIENT-SIDE FILTERING (TITLE, AUTHOR, PUBLISHER) ─────────
+  // ─── STEP 4: GENRE MOUNT Shelving FILTER BALANCES ─────────────────────────
   const filteredBooks = books.filter((book) => {
     const searchStr = searchTerm.toLowerCase();
+    
     const matchesSearch =
-      book.title?.toLowerCase().includes(searchStr) ||
-      book.genre?.toLowerCase().includes(searchStr) ||
-      book.author?.toLowerCase().includes(searchStr);
+      (book.title || '').toLowerCase().includes(searchStr) ||
+      (book.author || '').toLowerCase().includes(searchStr) ||
+      (book.publisher || '').toLowerCase().includes(searchStr);
+      
     const matchesGenre = activeGenre === 'All' || book.genre === activeGenre;
+    
     return matchesSearch && matchesGenre;
   });
 
+  // Instant favoriting pipeline tracking handler callback synchronization
+  const handleLocalFavoriteUpdate = (bookId, isNowFav) => {
+    if (isNowFav) {
+      setFavorites((prev) => [...prev, bookId]);
+    } else {
+      setFavorites((prev) => prev.filter((id) => id !== bookId));
+    }
+  };
+
   return (
     <div className="bg-[#F8F3EA] min-h-screen text-[#3E3024] font-sans antialiased pt-28 pb-16 px-6 selection:bg-[#A3B18A]/30">
-      <div className="max-w-6xl mx-auto space-y-8">
+      <div className="max-w-6xl mx-auto space-y-10">
         
         {/* Section Header */}
         <div className="border-b border-[#3E3024]/10 pb-5">
@@ -72,13 +110,55 @@ const Home = () => {
           </p>
         </div>
 
-        {/* Custom Input Search Bar Row */}
-        <div className="w-full max-w-xl">
+        {/* 🟢 BEAUTIFUL PERSONALIZED RECOMMENDATION SHELF (Hidden when searching or filtering) */}
+        {user && !searchTerm && activeGenre === 'All' && (
+          <div className="space-y-4">
+            <div className="flex items-baseline justify-between border-b border-[#3E3024]/5 pb-2">
+              <div>
+                <h2 className="font-serif text-xl sm:text-2xl font-black text-[#3E3024] tracking-tight">
+                  Recommended For You
+                </h2>
+                <p className="font-sans text-[10px] text-[#B66A50] font-bold uppercase tracking-wider mt-0.5">
+                  ✨ Tailored matches pulled for {user.name} based on affinity settings
+                </p>
+              </div>
+            </div>
+
+            {isRecLoading ? (
+              <div className="h-48 bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-[#556B2F]/20 border-t-[#556B2F] rounded-full animate-spin" />
+              </div>
+            ) : recommendations.length > 0 ? (
+              /* Soft Premium Wooden Background Backing Shadow Plate Box */
+              <div className="relative pt-6 pb-4 px-4 bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl shadow-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {recommendations.map((book) => (
+                    <BookCard
+                      key={`rec-${book.id}`}
+                      book={book}
+                      isFavorited={favorites.includes(book.id)}
+                      onFavoriteToggle={handleLocalFavoriteUpdate}
+                    />
+                  ))}
+                </div>
+                {/* Visual Shelf Line Strip Underneath Card Matrix Layout */}
+                <div className="w-full h-2 bg-[#6F4E37]/10 rounded-sm mt-6 border border-black/5" />
+              </div>
+            ) : (
+              <div className="p-6 bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl text-center text-xs text-[#3E3024]/50 font-medium italic">
+                Add items to your favorites or diary logs to prompt proactive machine recommendations.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 🟢 STEP 3: HIGH-PERFORMANCE CLIENT-SIDE LIVE SEARCH ROW */}
+        <div className="w-full max-w-xl pt-2">
           <div className="relative group">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm opacity-40 pointer-events-none">🔍</span>
             <input
               type="text"
-              placeholder="Search by title, author, or genre..."
+              placeholder="Search by title, author, or publisher..."
               className="w-full bg-[#FFFDF8] border border-[#3E3024]/10 rounded-full pl-12 pr-10 py-3.5 text-xs sm:text-sm text-[#3E3024] focus:outline-hidden focus:border-[#556B2F] focus:bg-[#FFFDF8] transition-all font-medium placeholder-[#3E3024]/30 shadow-2xs"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -115,7 +195,7 @@ const Home = () => {
           </div>
         ) : (
           <>
-            {/* Genre Filter Horizon Strip */}
+            {/* 🟢 STEP 4: GENRE FILTER AESTHETIC BOOKSHELF TABS */}
             {!searchTerm && genres.length > 1 && (
               <div className="flex items-center gap-2 overflow-x-auto pb-3 -mx-2 px-2 scrollbar-none">
                 {genres.map((genre) => (
@@ -151,6 +231,7 @@ const Home = () => {
                     key={book.book_id || book.id}
                     book={book}
                     isFavorited={favorites.includes(book.id)}
+                    onFavoriteToggle={handleLocalFavoriteUpdate}
                   />
                 ))}
               </div>
