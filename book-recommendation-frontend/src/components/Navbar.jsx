@@ -1,24 +1,37 @@
 /**
- * Navbar.jsx — BookWise Global Navigation Architecture (Context Fixed)
+ * Navbar.jsx — BookWise Global Navigation Architecture (Context & Sign-out Sync Fixed)
  * Stack: React + Tailwind v4 + Native CSS Micro-Interactions
  */
 
 import React, { useState, useContext } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { UserContext } from '../context/UserContext';
 
 const Navbar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Directly wiring to your real live application UserContext
   const { user, logout } = useContext(UserContext);
 
   const handleLogout = () => {
+    console.log('Sealing registers and clearing secure tokens...');
+    
+    // 1. ब्राउज़र के स्टोरेज से टोकन और यूजर डेटा को पूरी तरह साफ़ करें
+    localStorage.removeItem('jwt_token');
+    localStorage.removeItem('bookwise_user');
+    
+    // 2. कॉन्टेक्स्ट स्टेट को साफ़ करने के लिए logout() को कॉल करें
     if (logout) {
       logout();
     }
-    console.log('Sealing registers...');
+    
+    // 3. मोबाइल मेनू खुला हो तो उसे बंद करें
+    setIsMobileMenuOpen(false);
+
+    // 4. यूजर को तुरंत वापस होम/लॉगिन थ्रेसहोल्ड पर भेजें
+    navigate('/');
   };
 
   return (
@@ -53,7 +66,7 @@ const Navbar = () => {
             <>
               {[
                 { name: 'Dashboard', path: '/dashboard', icon: '📖' },
-                { name: 'Library', path: '/library', icon: '🪵' }, // Pointing to your Home.jsx file route
+                { name: 'Library', path: '/library', icon: '🪵' }, 
                 { name: 'Favorites', path: '/favorites', icon: '❤️' },
                 { name: 'Diary Profile', path: '/profile', icon: '🌸' },
               ].map((link) => (
@@ -95,7 +108,7 @@ const Navbar = () => {
               </Link>
               <button 
                 onClick={handleLogout} 
-                className="font-sans text-[10px] font-bold text-[#B66A50] hover:text-[#A25B42] uppercase tracking-wider bg-[#B66A50]/5 border border-[#B66A50]/10 px-2.5 py-1 rounded-md cursor-pointer transition-all"
+                className="font-sans text-[10px] font-bold text-[#B66A50] hover:text-[#A25B42] uppercase tracking-wider bg-[#B66A50]/5 border border-[#B66A50]/10 px-2.5 py-1 rounded-md cursor-pointer transition-all active:scale-95"
               >
                 Seal Journal
               </button>
@@ -138,7 +151,7 @@ const Navbar = () => {
             <>
               {[
                 { name: 'Dashboard', path: '/dashboard', icon: '📖' },
-                { name: 'Library', path: '/home', icon: '🪵' },
+                { name: 'Library', path: '/library', icon: '🪵' }, // Fixed: Corrected path from '/home' to '/library'
                 { name: 'Favorites', path: '/favorites', icon: '❤️' },
                 { name: 'Diary Profile', path: '/profile', icon: '🌸' },
               ].map((link) => (
@@ -154,6 +167,12 @@ const Navbar = () => {
                   {link.name}
                 </Link>
               ))}
+              <button
+                onClick={handleLogout}
+                className="w-full text-left font-sans text-xs font-bold text-[#B66A50] uppercase tracking-wider py-1.5 flex items-center gap-2 cursor-pointer"
+              >
+                <span>🚪</span> Seal Journal (Logout)
+              </button>
             </>
           )}
         </div>

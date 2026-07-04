@@ -5,81 +5,98 @@
  */
 
 import React, { useState, useEffect, useContext } from 'react';
-import { Link } from 'react-router-dom';
 import { UserContext } from '../context/UserContext';
-import { getAllBooks } from '../services/bookService';
+import { Link } from 'react-router-dom';
 
-// ─── JOURNAL WIDGET REUSABLE COMPONENT ────────────────────────────────────────
-const JournalCard = ({ children, className = '' }) => (
-  <div className={`bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl p-6 shadow-xs relative overflow-hidden transition-all duration-300 hover:shadow-md ${className}`}>
-    {/* Subtle vintage lined notebook paper accent layer */}
-    <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3E3024 1px, transparent 1px)', backgroundSize: '100% 24px', transform: 'translateY(4px)' }} />
-    <div className="relative z-10">{children}</div>
+// Simple Shared Component for UI Cards
+const JournalCard = ({ children }) => (
+  <div className="bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl p-6 shadow-sm transition-transform duration-300 hover:-translate-y-0.5 relative overflow-hidden">
+    {children}
   </div>
 );
 
 const Dashboard = () => {
   const { user } = useContext(UserContext);
-  
-  // 🟢 Replaced old separate values with cohesive backend analytis register hooks
+
+  // Core State Holders - Synchronized to match JSX references
   const [analytics, setAnalytics] = useState({
-    streak: 5,
-    favoriteGenre: 'Self Help',
-    mostReadAuthor: 'Unknown Author',
+    streak: 0,
+    favoriteGenre: '—',
+    mostReadAuthor: '—',
     booksSaved: 0
   });
-  const [totalBooks, setTotalBooks] = useState(0);
   const [currentlyReading, setCurrentlyReading] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Pre-configured stable charts matrix parameter as requested by guidelines
-  const mockMonthlyChart = [25, 50, 35, 80, 45, 65]; 
+  // Mock array for graphic speed charts visual rendering
+  const mockMonthlyChart = [40, 65, 50, 85, 55, 90];
 
+  // ─── HARVEST LIVE SECURED METRICS REGISTER ───────────────────────────────
   useEffect(() => {
-    const loadDashboardMetrics = async () => {
+    const fetchDashboardData = async () => {
       try {
         setIsLoading(true);
-        const currentUserId = user?.id || 1; // Safely fall back to default ledger key if context unmounts
+        const activeToken = localStorage.getItem('jwt_token');
+        if (!activeToken) return;
 
-        // Fetching structural metadata and dynamic tracking indicators concurrently
-        const [allBooksData, analyticsRes] = await Promise.all([
-          getAllBooks(),
-          fetch(`http://localhost:5000/api/analytics/${currentUserId}`).then(r => r.json()).catch(() => null)
-        ]);
+        // 1. Fetch Analytics Metrics
+        const response = await fetch(`http://localhost:5000/api/analytics/${user?.id || 1}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${activeToken}`
+          }
+        });
 
-        const booksList = allBooksData || [];
-        setTotalBooks(booksList.length);
-
-        if (analyticsRes) {
-          setAnalytics(analyticsRes);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setAnalytics({
+              streak: data.streak,
+              favoriteGenre: data.favoriteGenre,
+              mostReadAuthor: data.mostReadAuthor,
+              booksSaved: data.booksSaved
+            });
+          }
         }
 
-        // Isolate dynamic workspace sliders from the books archive safely
-        setCurrentlyReading(booksList.slice(0, 2).map((b, i) => ({
-          ...b,
-          progress: i === 0 ? 65 : 20,
-          coverBg: i === 0 ? 'bg-[#B66A50]' : 'bg-[#6F4E37]',
-          text: 'text-[#FFFDF8]',
-          tag: b.genre || 'General'
-        })));
+        // 2. Fetch Active Reading Status Tracks
+        const statusRes = await fetch(`http://localhost:5000/api/reading-status/${user?.id || 1}`, {
+          headers: { 'Authorization': `Bearer ${activeToken}` }
+        });
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          setCurrentlyReading((statusData.statuses || []).slice(0, 3));
+        }
 
-        setRecommendations(booksList.slice(2, 4).map((b, i) => ({
-          ...b,
-          vibe: i === 0 ? 'Mystical & Inspiring' : 'Deep Historical Canvas',
-          coverBg: i === 0 ? 'bg-[#556B2F]' : 'bg-[#D8A7B1]',
-          text: i === 0 ? 'text-[#FFFDF8]' : 'text-[#3E3024]',
-          label: i === 0 ? 'Because you love Fiction' : 'AI Mood Recommendation'
-        })));
+        // 3. Fetch Premium Dynamic Engine Recommendations for right side widget panel
+        const recRes = await fetch(`http://localhost:5000/api/recommendations`, {
+          headers: { 'Authorization': `Bearer ${activeToken}` }
+        });
+        if (recRes.ok) {
+          const recData = await recRes.json();
+          // Transform standard book list arrays safely for curated sidebar vibe displays
+          const calibratedRecs = (recData.books || recData || []).slice(0, 3).map((book, idx) => ({
+            id: book.id,
+            title: book.title,
+            author: book.author,
+            label: idx === 0 ? 'Affinity Pick' : idx === 1 ? 'Weekly Top' : 'System Match',
+            vibe: book.genre || 'Personal Growth Focus'
+          }));
+          setRecommendations(calibratedRecs);
+        }
 
       } catch (err) {
-        console.error('Failed to instantiate metric ledger parameters:', err);
+        console.error("Dashboard archival network matrix sync error:", err);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadDashboardMetrics();
+    if (user) {
+      fetchDashboardData();
+    }
   }, [user]);
 
   const readerName = user?.name || 'Sadiya';
@@ -106,7 +123,7 @@ const Dashboard = () => {
         {/* ─── TOP MATRIX: LIVE ANCHORED JOURNAL WIDGETS ───────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
-          {/* Widget 1: Real Reading Streak (Issue 8) */}
+          {/* Widget 1: Real Reading Streak */}
           <JournalCard>
             <div className="flex items-center gap-3 mb-4">
               <span className="text-2xl">☕</span>
@@ -120,7 +137,7 @@ const Dashboard = () => {
             </p>
           </JournalCard>
 
-          {/* Widget 2: Live Structural Matrix Ledger (Issue 8) */}
+          {/* Widget 2: Live Structural Matrix Ledger */}
           <JournalCard>
             <div className="flex items-center gap-3 mb-2">
               <span className="text-2xl">🪵</span>
@@ -184,13 +201,13 @@ const Dashboard = () => {
                 currentlyReading.map((book) => (
                   <div key={book.id} className="bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl p-5 shadow-2xs flex flex-col sm:flex-row justify-between sm:items-center gap-5 transition-transform duration-300 hover:-translate-y-0.5">
                     <div className="flex items-start gap-4">
-                      <div className={`${book.coverBg} ${book.text} w-10 h-14 rounded-r-sm border-y border-r border-black/10 flex flex-col justify-end p-1.5 shadow-sm flex-shrink-0 relative`}>
+                      <div className="w-10 h-14 bg-[#F3E6D0] text-[#3E3024] rounded-r-sm border-y border-r border-black/10 flex flex-col justify-end p-1.5 shadow-sm flex-shrink-0 relative">
                         <div className="absolute left-0 inset-y-0 w-0.5 bg-black/10" />
-                        <span className="text-[8px] block font-serif font-black leading-tight tracking-tight select-none truncate">{book.title}</span>
+                        <span className="text-[6px] block font-serif font-black leading-tight tracking-tight select-none truncate">{book.title}</span>
                       </div>
                       <div>
                         <span className="text-[9px] font-bold uppercase tracking-wider bg-[#A3B18A]/20 text-[#556B2F] px-2 py-0.5 rounded-sm inline-block mb-1">
-                          {book.tag}
+                          {book.status?.replace('_', ' ')}
                         </span>
                         <h3 className="font-serif text-base font-bold text-[#3E3024]">{book.title}</h3>
                         <p className="font-sans text-xs text-[#3E3024]/60 font-medium">by {book.author || 'Unknown Author'}</p>
@@ -200,13 +217,13 @@ const Dashboard = () => {
                     <div className="w-full sm:w-48 space-y-2">
                       <div className="flex justify-between text-[10px] font-bold text-[#3E3024]/50 uppercase tracking-wider">
                         <span>Log Milestone</span>
-                        <span>{book.progress}%</span>
+                        <span>{book.progress_percent || 0}%</span>
                       </div>
                       <div className="w-full bg-[#F8F3EA] h-1.5 rounded-full border border-[#3E3024]/5 overflow-hidden">
-                        <div className="bg-[#B66A50] h-full rounded-full" style={{ width: `${book.progress}%` }} />
+                        <div className="bg-[#B66A50] h-full rounded-full" style={{ width: `${book.progress_percent || 0}%` }} />
                       </div>
                       <div className="flex justify-end gap-3 pt-1">
-                        <Link to={`/book/${book.id}`} className="text-[10px] font-bold text-[#556B2F] uppercase tracking-wider hover:underline">
+                        <Link to={`/book/${book.book_id}`} className="text-[10px] font-bold text-[#556B2F] uppercase tracking-wider hover:underline">
                           Open Entry
                         </Link>
                       </div>

@@ -1,7 +1,7 @@
 /**
- * Login.jsx — BookWise Functional Auth Sanctuary Redesign (Full State & API Integration)
+ * Login.jsx — BookWise Functional Auth Sanctuary (Full State & JWT Integration)
  * Stack: React + Tailwind v4 + Native CSS Keyframes
- * Integration: Live context management linked directly to your local API registers
+ * Integration: Live context management handling password hashing and JWT token storage
  */
 
 import React, { useState, useContext } from 'react';
@@ -23,16 +23,16 @@ const DesignSystemTitle = ({ serifText, sansSub }) => (
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login } = useContext(UserContext); // active context framework hook
+  const { handleLogin } = useContext(UserContext); // Updated hook identifier directly pointing to unified context execution
   
   // Tab Management state
   const [activeTab, setActiveTab] = useState('login'); // 'login' | 'signup'
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Form Bindings supporting cohesive single-state tracking
-  const [loginData, setLoginData] = useState({ email: '' });
-  const [signupData, setSignupData] = useState({ name: '', email: '' });
+  // Form Bindings supporting cohesive single-state tracking with password capabilities
+  const [loginData, setLoginData] = useState({ email: '', password: '' });
+  const [signupData, setSignupData] = useState({ name: '', email: '', password: '', confirmPassword: '' });
 
   const handleLoginChange = (e) => {
     const { name, value } = e.target;
@@ -44,12 +44,12 @@ const Login = () => {
     setSignupData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // ─── AUTHENTICATED ACCESS API FORM EXECUTION (POST /api/login) ───────────────
+  // ─── AUTHENTICATED ACCESS API FORM EXECUTION (POST /api/auth/login) ───────────────
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     
-    if (!loginData.email.trim()) {
-      setError('Please enter your email address.');
+    if (!loginData.email.trim() || !loginData.password) {
+      setError('Please populate both email and password rows.');
       return;
     }
 
@@ -57,27 +57,27 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      const response = await fetch('http://localhost:5000/api/login', {
+      const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginData.email.trim() }),
+        body: JSON.stringify({ 
+          email: loginData.email.trim(),
+          password: loginData.password
+        }),
       });
 
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        setError(data.message || 'User not found. Please check your email.');
+        setError(data.message || 'User not found. Please verify your credentials.');
         return;
       }
 
-      // Save user session details directly into localized hardware registers
-      localStorage.setItem('bookwise_user', JSON.stringify(data.user));
-
-      // Sync active tracking state through UserContext variables globally
-      login(data.user);
+      // Pass user payload and token footprint cleanly up into state memory management
+      handleLogin(data.user, data.token);
       
-      // 🟢 Redirect cleanly to the onboarding affinity selection flow instead of raw dashboard
-      navigate('/onboarding');
+      // Route reader straight into the active analytical companion spaces
+      navigate('/dashboard');
     } catch (err) {
       setError('Could not connect to the server. Please ensure the backend is running.');
     } finally {
@@ -85,12 +85,17 @@ const Login = () => {
     }
   };
 
-  // ─── NEW READER BOOKSHELF ARCHIVE CREATION ────────────────────────────────────
+  // ─── NEW READER BOOKSHELF ARCHIVE CREATION (POST /api/auth/signup) ──────────────
   const handleSignupSubmit = async (e) => {
     e.preventDefault();
     
-    if (!signupData.email.trim() || !signupData.name.trim()) {
+    if (!signupData.email.trim() || !signupData.name.trim() || !signupData.password) {
       setError('Please populate all ledger information rows.');
+      return;
+    }
+
+    if (signupData.password !== signupData.confirmPassword) {
+      setError('Passcode rows do not align.');
       return;
     }
 
@@ -98,25 +103,28 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      const response = await fetch('http://localhost:5000/api/login', {
+      const response = await fetch('http://localhost:5000/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: signupData.email.trim() }),
+        body: JSON.stringify({ 
+          name: signupData.name.trim(),
+          email: signupData.email.trim(),
+          password: signupData.password
+        }),
       });
 
       const data = await response.json();
 
-      if (response.ok && data.success) {
-        localStorage.setItem('bookwise_user', JSON.stringify(data.user));
-        login(data.user);
-        
-        // 🟢 Route new readers straight into the affinity chamber onboarding matrix
-        navigate('/onboarding');
-      } else {
-        // Fallback tab alignment if route variations are restricted
-        setActiveTab('login');
-        setError('Shelf initialized cleanly! Enter email above to verify access.');
+      if (!response.ok || !data.success) {
+        setError(data.message || 'Failed to instantiate bookshelf registry account.');
+        return;
       }
+
+      // Log user session variables securely from registration responses
+      handleLogin(data.user, data.token);
+      
+      // Route fresh readers straight into the affinity chamber onboarding matrix
+      navigate('/onboarding');
     } catch (err) {
       setError('Could not contact archival backend servers.');
     } finally {
@@ -222,6 +230,21 @@ const Login = () => {
               />
             </div>
 
+            <div>
+              <label className="block font-sans text-[10px] font-bold text-[#3E3024]/60 uppercase tracking-widest mb-1.5 pl-1">
+                Secret Access Passcode
+              </label>
+              <input
+                type="password"
+                name="password"
+                value={loginData.password}
+                onChange={handleLoginChange}
+                required
+                placeholder="••••••••"
+                className="w-full bg-[#F8F3EA]/50 border border-[#3E3024]/10 rounded-xl px-4 py-3 text-xs sm:text-sm text-[#3E3024] focus:outline-hidden focus:border-[#556B2F] focus:bg-[#FFFDF8] transition-all font-medium placeholder-[#3E3024]/30 shadow-2xs"
+              />
+            </div>
+
             <button
               type="submit"
               disabled={isLoading}
@@ -265,6 +288,36 @@ const Login = () => {
               />
             </div>
 
+            <div>
+              <label className="block font-sans text-[10px] font-bold text-[#3E3024]/60 uppercase tracking-widest mb-1.5 pl-1">
+                Choose Secure Password
+              </label>
+              <input
+                type="password"
+                name="password"
+                value={signupData.password}
+                onChange={handleSignupChange}
+                required
+                placeholder="Minimum 6 characters"
+                className="w-full bg-[#F8F3EA]/50 border border-[#3E3024]/10 rounded-xl px-4 py-3 text-xs sm:text-sm text-[#3E3024] focus:outline-hidden focus:border-[#556B2F] focus:bg-[#FFFDF8] transition-all font-medium placeholder-[#3E3024]/30 shadow-2xs"
+              />
+            </div>
+
+            <div>
+              <label className="block font-sans text-[10px] font-bold text-[#3E3024]/60 uppercase tracking-widest mb-1.5 pl-1">
+                Confirm Selected Password
+              </label>
+              <input
+                type="password"
+                name="confirmPassword"
+                value={signupData.confirmPassword}
+                onChange={handleSignupChange}
+                required
+                placeholder="Re-type your password"
+                className="w-full bg-[#F8F3EA]/50 border border-[#3E3024]/10 rounded-xl px-4 py-3 text-xs sm:text-sm text-[#3E3024] focus:outline-hidden focus:border-[#556B2F] focus:bg-[#FFFDF8] transition-all font-medium placeholder-[#3E3024]/30 shadow-2xs"
+              />
+            </div>
+
             <button
               type="submit"
               disabled={isLoading}
@@ -283,13 +336,13 @@ const Login = () => {
           <button
             type="button"
             onClick={() => {
-              if (activeTab === 'login') setLoginData({ email: 'sadiya@email.com' });
-              else setSignupData({ name: 'Sadiya Shaikh', email: 'sadiya@email.com' });
+              if (activeTab === 'login') setLoginData({ email: 'sadiya@email.com', password: 'Sadiya123' });
+              else setSignupData({ name: 'Sadiya Shaikh', email: 'sadiya@email.com', password: 'Sadiya123', confirmPassword: 'Sadiya123' });
               setError('');
             }}
             className="text-xs text-[#B66A50] hover:text-[#A25B42] font-mono font-bold hover:underline transition-colors cursor-pointer"
           >
-            sadiya@email.com
+            sadiya@email.com (Pass: Sadiya123)
           </button>
         </div>
 

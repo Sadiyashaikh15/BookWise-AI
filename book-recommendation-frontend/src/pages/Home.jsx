@@ -1,93 +1,147 @@
 /**
- * Home.jsx — BookWise Virtual Library Index Redesign (API Bound via Service Layer)
- * Stack: React + Tailwind v4 + Soft CSS Micro-Interactions
- * Aesthetic: Walking down a cozy wooden bookstore aisle with live filter registers & curations
+ * Home.jsx — The Sanctuary Grand Archive (Continuous Discovery Redesign)
+ * Stack: React + Tailwind v4 + Split State Management Architecture
+ * Aesthetic: Warm Linen Parchment x Intelligent Librarian Dialogue Feed
  */
 
 import React, { useState, useEffect, useContext } from 'react';
 import BookCard from '../components/bookcard/BookCard';
 import { UserContext } from '../context/UserContext';
-import { getAllBooks, getRecommendations } from '../services/bookService';
+import { getAllBooks } from '../services/bookService';
 
 const Home = () => {
-  const { user } = useContext(UserContext);
+  const { user, token } = useContext(UserContext);
+
+  // ─── STATE MANAGEMENT PANELS ──────────────────────────────────────────────
   const [books, setBooks] = useState([]);
   const [favorites, setFavorites] = useState([]);
-  const [recommendations, setRecommendations] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [popularBooks, setPopularBooks] = useState([]);
+  const [recommendedBooks, setRecommendedBooks] = useState([]);
+
+  // Lifecycle Signals
+  const [isMainLoading, setIsMainLoading] = useState(true);
   const [isRecLoading, setIsRecLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [error, setError] = useState(null);
+
+  // Discovery Form Input States
+  const [goalPrompt, setGoalPrompt] = useState('');
   const [activeGenre, setActiveGenre] = useState('All');
+  const [aiRationaleText, setAiRationaleText] = useState(
+    'Because this matches your established profile affinities in Productivity and Self Growth.'
+  );
 
-  // ─── LIVE BACKEND DATA SYNC PIPELINE VIA SERVICES ──────────────────────────
+  const quickGoals = [
+    "Become disciplined",
+    "Placement preparation",
+    "Learn investing",
+    "Improve communication",
+    "Programming",
+    "Psychology"
+  ];
+
+  // ─── PIPELINE 1: INITIAL PASSIVE DATA HARVESTING ─────────────────────────
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchUniversalArchiveLogs = async () => {
       try {
-        setIsLoading(true);
-        setError(null);
+        setIsMainLoading(true);
 
-        // Fetching clean structured data registers using your new bookService engine
+        // 1. Fetch Master Library Collection Records (Public endpoint)
         const booksData = await getAllBooks();
-        setBooks(booksData || []);
+        const verifiedBooks = booksData || [];
+        setBooks(verifiedBooks);
 
-        if (user) {
-          const response = await fetch(`http://localhost:5000/api/favorites/${user.id}`);
-          if (response.ok) {
-            const favData = await response.json();
+        // 2. Extract Popular This Week Rows sorted via baseline rating metrics
+        const sortedPopular = [...verifiedBooks]
+          .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+          .slice(0, 4);
+        setPopularBooks(sortedPopular);
+
+        const activeToken = token || localStorage.getItem('jwt_token');
+
+        // 3. Sync User Favorites Array & Prime Personalized Recommendations
+        if (activeToken) {
+          // ✅ FIX: Injected the required authentication header to prevent backend failure
+          const favResponse = await fetch(`http://localhost:5000/api/favorites/${user?.id || 1}`, {
+            headers: {
+              'Authorization': `Bearer ${activeToken}`
+            }
+          });
+          
+          if (favResponse.ok) {
+            const favData = await favResponse.json();
+            // Natively targets the 'favorites' array array mapping returned from our secure database query
             setFavorites((favData.favorites || []).map((f) => f.id));
           }
+
+          // 4. Prime the Recommended Shelf Reactively via Token Session Identity
+          setIsRecLoading(true);
+          const recResponse = await fetch(`http://localhost:5000/api/recommendations`, {
+            headers: {
+              'Authorization': `Bearer ${activeToken}`
+            }
+          });
+          
+          if (recResponse.ok) {
+            const recData = await recResponse.json();
+            const recList = recData.books || recData.recommendations || recData || [];
+            setRecommendedBooks(recList.slice(0, 4));
+          }
+        } else {
+          // Unauthenticated default layout seed values configuration
+          setRecommendedBooks(verifiedBooks.slice(5, 9));
         }
       } catch (err) {
-        setError(err.message);
+        console.error("Archive network sync warning:", err);
       } finally {
-        setTimeout(() => setIsLoading(false), 600);
-      }
-    };
-
-    fetchData();
-  }, [user]);
-
-  // ─── LIVE RECOMMENDATIONS PIPELINE VIA SERVICES ────────────────────────────
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchUserRecommendations = async () => {
-      try {
-        setIsRecLoading(true);
-        // Fetch personalized books using user context via your core bookService
-        const recData = await getRecommendations(user.id);
-        const recList = recData.books || recData.recommendations || recData || [];
-        setRecommendations(recList.slice(0, 4)); // Isolate top 4 targeted books
-      } catch (err) {
-        console.error('Quiet curations fetch notice:', err.message);
-      } finally {
+        setIsMainLoading(false);
         setIsRecLoading(false);
       }
     };
 
-    fetchUserRecommendations();
-  }, [user, activeGenre]); // Triggers fresh query balances on preference shifts
-
-  // Dynamic extract for available genres to generate the bookshelf tabs
-  const genres = ['All', ...new Set(books.map((b) => b.genre).filter(Boolean))];
-
-  // ─── STEP 3: LIVE CLIENT-SIDE FILTERING (TITLE, AUTHOR, PUBLISHER) ─────────
-  // ─── STEP 4: GENRE MOUNT Shelving FILTER BALANCES ─────────────────────────
-  const filteredBooks = books.filter((book) => {
-    const searchStr = searchTerm.toLowerCase();
+    fetchUniversalArchiveLogs();
+  }, [user, token]);
+  // ─── PIPELINE 2: GUIDED AI DISCOVERY INTAKE PIPELINE ──────────────────────
+  const handleLibrarianDiscovery = async (prompt) => {
+    if (!prompt.trim()) return;
     
-    const matchesSearch =
-      (book.title || '').toLowerCase().includes(searchStr) ||
-      (book.author || '').toLowerCase().includes(searchStr) ||
-      (book.publisher || '').toLowerCase().includes(searchStr);
+    const activeToken = token || localStorage.getItem('jwt_token');
+    if (!activeToken) {
+      alert("Cross the sanctuary threshold—please log in to ask the AI Librarian.");
+      return;
+    }
+
+    setIsRecLoading(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/librarian/discover', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({ goal_prompt: prompt.trim() }),
+      });
       
-    const matchesGenre = activeGenre === 'All' || book.genre === activeGenre;
-    
-    return matchesSearch && matchesGenre;
+      const data = await response.json();
+      if (data.success && data.books && data.books.length > 0) {
+        // Intercept and update only the premium contextual evaluation board
+        setRecommendedBooks(data.books.slice(0, 4));
+        setAiRationaleText(data.books[0]?.aiRationale || `I have aligned these strategic options perfectly matching your inquiry.`);
+        setGoalPrompt('');
+      }
+    } catch (err) {
+      console.error("Librarian pipeline communication failure:", err);
+    } finally {
+      setIsRecLoading(false);
+    }
+  };
+
+  // Extract master genre filters out dynamically from collection array indices
+  const staticGenres = ['All', ...new Set(books.map((b) => b.genre).filter(Boolean))];
+
+  // ─── PIPELINE 3: MANUAL DISCOVERY ARCHIVE INDEX FILTERING ─────────────────
+  const filteredGrandArchiveBooks = books.filter((book) => {
+    return activeGenre === 'All' || book.genre === activeGenre;
   });
 
-  // Instant favoriting pipeline tracking handler callback synchronization
   const handleLocalFavoriteUpdate = (bookId, isNowFav) => {
     if (isNowFav) {
       setFavorites((prev) => [...prev, bookId]);
@@ -98,107 +152,126 @@ const Home = () => {
 
   return (
     <div className="bg-[#F8F3EA] min-h-screen text-[#3E3024] font-sans antialiased pt-28 pb-16 px-6 selection:bg-[#A3B18A]/30">
-      <div className="max-w-6xl mx-auto space-y-10">
+      <div className="max-w-5xl mx-auto space-y-12">
         
-        {/* Section Header */}
-        <div className="border-b border-[#3E3024]/10 pb-5">
-          <h1 className="font-serif text-3xl sm:text-5xl font-black tracking-tight text-[#3E3024]">
-            The Grand Archive
+        {/* ─── 1. HERO SECTION (THE SANCTUARY CONVERSATIONAL FOYER) ────────── */}
+        <div className="text-center space-y-4 border-b border-[#3E3024]/10 pb-6">
+          <h1 className="font-serif text-4xl sm:text-6xl font-black text-[#3E3024]">
+            {user ? `Good Evening, ${user.name}.` : "Welcome to the Archive."}
           </h1>
-          <p className="font-sans text-xs font-bold text-[#556B2F] tracking-widest uppercase mt-2">
-            🪵 Walk between the cases & discover your next volume
+          <p className="font-sans text-xs font-bold text-[#556B2F] tracking-widest uppercase">
+            What are you looking for today?
           </p>
-        </div>
 
-        {/* 🟢 BEAUTIFUL PERSONALIZED RECOMMENDATION SHELF (Hidden when searching or filtering) */}
-        {user && !searchTerm && activeGenre === 'All' && (
-          <div className="space-y-4">
-            <div className="flex items-baseline justify-between border-b border-[#3E3024]/5 pb-2">
-              <div>
-                <h2 className="font-serif text-xl sm:text-2xl font-black text-[#3E3024] tracking-tight">
-                  Recommended For You
-                </h2>
-                <p className="font-sans text-[10px] text-[#B66A50] font-bold uppercase tracking-wider mt-0.5">
-                  ✨ Tailored matches pulled for {user.name} based on affinity settings
-                </p>
-              </div>
-            </div>
-
-            {isRecLoading ? (
-              <div className="h-48 bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl flex items-center justify-center">
-                <div className="w-6 h-6 border-2 border-[#556B2F]/20 border-t-[#556B2F] rounded-full animate-spin" />
-              </div>
-            ) : recommendations.length > 0 ? (
-              /* Soft Premium Wooden Background Backing Shadow Plate Box */
-              <div className="relative pt-6 pb-4 px-4 bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl shadow-sm">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                  {recommendations.map((book) => (
-                    <BookCard
-                      key={`rec-${book.id}`}
-                      book={book}
-                      isFavorited={favorites.includes(book.id)}
-                      onFavoriteToggle={handleLocalFavoriteUpdate}
-                    />
-                  ))}
-                </div>
-                {/* Visual Shelf Line Strip Underneath Card Matrix Layout */}
-                <div className="w-full h-2 bg-[#6F4E37]/10 rounded-sm mt-6 border border-black/5" />
-              </div>
-            ) : (
-              <div className="p-6 bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl text-center text-xs text-[#3E3024]/50 font-medium italic">
-                Add items to your favorites or diary logs to prompt proactive machine recommendations.
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 🟢 STEP 3: HIGH-PERFORMANCE CLIENT-SIDE LIVE SEARCH ROW */}
-        <div className="w-full max-w-xl pt-2">
-          <div className="relative group">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm opacity-40 pointer-events-none">🔍</span>
+          {/* Conversational Intake Prompt Line */}
+          <div className="relative max-w-xl mx-auto pt-2">
             <input
               type="text"
-              placeholder="Search by title, author, or publisher..."
-              className="w-full bg-[#FFFDF8] border border-[#3E3024]/10 rounded-full pl-12 pr-10 py-3.5 text-xs sm:text-sm text-[#3E3024] focus:outline-hidden focus:border-[#556B2F] focus:bg-[#FFFDF8] transition-all font-medium placeholder-[#3E3024]/30 shadow-2xs"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="e.g., 'I want to become more disciplined' or describe a goal..."
+              className="w-full bg-[#FFFDF8] border border-[#3E3024]/20 rounded-2xl px-6 py-4 text-base font-serif text-[#3E3024] focus:outline-hidden focus:border-[#B66A50] transition-all shadow-md placeholder-[#3E3024]/30"
+              value={goalPrompt}
+              onChange={(e) => setGoalPrompt(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleLibrarianDiscovery(goalPrompt)}
             />
-            {searchTerm && (
+            {goalPrompt && (
               <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#3E3024]/40 hover:text-[#3E3024] transition-colors cursor-pointer"
+                onClick={() => setGoalPrompt('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-xs opacity-40 hover:opacity-100 transition-opacity cursor-pointer"
               >
                 ✕
               </button>
             )}
           </div>
+          
+          {/* Quick Action Goal Interaction Chips */}
+          <div className="flex flex-wrap gap-2 justify-center max-w-2xl mx-auto pt-2">
+            {quickGoals.map(goal => (
+              <button 
+                key={goal}
+                onClick={() => handleLibrarianDiscovery(goal)}
+                className="px-4 py-2 bg-[#F3E6D0]/50 border border-[#3E3024]/10 rounded-full text-[10px] font-bold uppercase tracking-wider text-[#3E3024]/70 hover:bg-[#B66A50] hover:text-[#FFFDF8] transition-all cursor-pointer active:scale-95"
+              >
+                • {goal}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Database Error Banner Panel */}
-        {error && (
-          <div className="flex items-start gap-3 bg-[#B66A50]/10 border border-[#B66A50]/20 text-[#B66A50] p-5 rounded-2xl max-w-xl">
-            <span className="text-lg mt-0.5">⚠️</span>
-            <div>
-              <p className="font-serif font-bold text-sm">Sanctuary Register Warning</p>
-              <p className="text-xs text-[#B66A50]/80 mt-0.5">{error}. Ensure backend registers are operational on port 5000.</p>
-            </div>
-          </div>
-        )}
-
-        {/* ─── LOADING STATE ────────────────────────────────────────────────── */}
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-32 space-y-4">
-            <div className="w-10 h-10 border-4 border-[#556B2F]/20 border-t-[#556B2F] rounded-full animate-spin" />
-            <p className="text-xs font-bold uppercase tracking-widest text-[#3E3024]/40 animate-pulse">
-              Consulting library logs...
-            </p>
+        {/* Global Structural Loading Ring Mask */}
+        {isMainLoading ? (
+          <div className="flex flex-col items-center justify-center py-24 space-y-3">
+            <div className="w-8 h-8 border-4 border-[#556B2F]/20 border-t-[#556B2F] rounded-full animate-spin" />
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#3E3024]/40 animate-pulse">Consulting library logs...</p>
           </div>
         ) : (
           <>
-            {/* 🟢 STEP 4: GENRE FILTER AESTHETIC BOOKSHELF TABS */}
-            {!searchTerm && genres.length > 1 && (
-              <div className="flex items-center gap-2 overflow-x-auto pb-3 -mx-2 px-2 scrollbar-none">
-                {genres.map((genre) => (
+            {/* ─── 2. RECOMMENDED FOR YOU (THE DYNAMIC ALIVE ENGINE SHELF) ────── */}
+            <div className="space-y-4">
+              <div className="border-b border-[#3E3024]/5 pb-1">
+                <h2 className="font-serif text-xl sm:text-2xl font-black text-[#3E3024] tracking-tight flex items-center gap-2">
+                  Recommended For You <span className="text-sm opacity-50">⭐</span>
+                </h2>
+              </div>
+
+              {isRecLoading ? (
+                <div className="h-48 bg-[#FFFDF8] border border-[#3E3024]/5 rounded-2xl flex items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-[#B66A50]/20 border-t-[#B66A50] rounded-full animate-spin" />
+                </div>
+              ) : (
+                <div className="space-y-6 bg-[#FFFDF8] border border-[#3E3024]/10 p-5 rounded-2xl shadow-sm relative">
+                  {/* Soft Calligraphic Linen Rationale Box */}
+                  <div className="bg-[#F3E6D0]/20 border-l-2 border-[#B66A50] p-4 rounded-r-xl text-xs sm:text-sm font-serif italic text-[#3E3024]/80 leading-relaxed">
+                    "{aiRationaleText}"
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 animate-fadeIn">
+                    {recommendedBooks.map((book) => (
+                      <div key={`rec-${book.id}`} className="space-y-2">
+                        <BookCard 
+                          book={book} 
+                          isFavorited={favorites.includes(book.id)} 
+                          onFavoriteToggle={handleLocalFavoriteUpdate}
+                        />
+                        {book.influences && (
+                          <div className="text-[9px] font-sans font-bold text-[#556B2F] uppercase tracking-wide opacity-80 pl-1">
+                            ↳ Why? {book.influences[0]}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="w-full h-1.5 bg-[#6F4E37]/10 rounded-sm mt-4" />
+                </div>
+              )}
+            </div>
+
+            {/* ─── 3. POPULAR THIS WEEK (TRENDING LEDGER ROW) ────────────────── */}
+            <div className="space-y-4">
+              <div className="border-b border-[#3E3024]/5 pb-1">
+                <h2 className="font-serif text-xl sm:text-2xl font-black text-[#3E3024] tracking-tight flex items-center gap-2">
+                  Popular This Week <span className="text-sm opacity-50">🔥</span>
+                </h2>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {popularBooks.map((book) => (
+                  <BookCard
+                    key={`pop-${book.id}`}
+                    book={book}
+                    isFavorited={favorites.includes(book.id)}
+                    onFavoriteToggle={handleLocalFavoriteUpdate}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* ─── 4. BROWSE BY GENRE (ISOLATED FILTER NAVIGATION) ───────────── */}
+            <div className="space-y-3 pt-2">
+              <div className="border-b border-[#3E3024]/5 pb-1">
+                <h3 className="font-serif text-lg font-bold text-[#3E3024] tracking-tight">Browse by Genre</h3>
+              </div>
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-2 px-2 scrollbar-none">
+                {staticGenres.map((genre) => (
                   <button
                     key={genre}
                     onClick={() => setActiveGenre(genre)}
@@ -212,62 +285,45 @@ const Home = () => {
                   </button>
                 ))}
               </div>
-            )}
-
-            {/* Results Count Line */}
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-xs text-[#3E3024]/50 font-bold uppercase tracking-wider font-sans">
-                {searchTerm
-                  ? `${filteredBooks.length} entry found for "${searchTerm}"`
-                  : `${filteredBooks.length} volume available on active shelf`}
-              </p>
             </div>
 
-            {/* ─── MAIN DOCKING ARCHIVE GRID ──────────────────────────────────── */}
-            {filteredBooks.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pt-2">
-                {filteredBooks.map((book) => (
-                  <BookCard
-                    key={book.book_id || book.id}
-                    book={book}
-                    isFavorited={favorites.includes(book.id)}
-                    onFavoriteToggle={handleLocalFavoriteUpdate}
-                  />
-                ))}
+            {/* ─── 5. THE GRAND ARCHIVE (THE PERSISTENT INDEX LOG WINDOW) ─────── */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-[#3E3024]/40 font-sans">
+                <span>The Grand Archive Register</span>
+                <span>{filteredGrandArchiveBooks.length} Volumes Logged</span>
               </div>
-            ) : (
-              /* Handcrafted Empty Shelf Canvas View */
-              <div className="bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl p-12 text-center max-w-md mx-auto shadow-2xs">
-                <div className="w-12 h-12 bg-[#F8F3EA] rounded-full flex items-center justify-center mx-auto mb-4 border border-[#3E3024]/5">
-                  <span className="text-xl opacity-60">🪶</span>
+
+              {filteredGrandArchiveBooks.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {filteredGrandArchiveBooks.map((book) => (
+                    <BookCard
+                      key={`archive-${book.id}`}
+                      book={book}
+                      isFavorited={favorites.includes(book.id)}
+                      onFavoriteToggle={handleLocalFavoriteUpdate}
+                    />
+                  ))}
                 </div>
-                <p className="font-serif text-lg font-bold text-[#3E3024] mb-1">
-                  Silence in the aisles
-                </p>
-                <p className="font-sans text-xs text-[#3E3024]/60 font-medium mb-6">
-                  {searchTerm ? `Nothing cataloged matches "${searchTerm}"` : `No records match shelf selection`}
-                </p>
-                <button
-                  onClick={() => { setSearchTerm(''); setActiveGenre('All'); }}
-                  className="px-5 py-2.5 bg-[#B66A50] text-[#FFFDF8] rounded-full font-bold text-xs uppercase tracking-wider hover:bg-[#A25B42] transition-colors shadow-xs cursor-pointer"
-                >
-                  Clear Catalog Filters
-                </button>
-              </div>
-            )}
+              ) : (
+                <div className="bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl p-12 text-center max-w-sm mx-auto shadow-2xs">
+                  <span className="text-xl block mb-2">🪶</span>
+                  <p className="font-serif text-sm font-bold text-[#3E3024]">No structural items found inside this case partition.</p>
+                </div>
+              )}
+            </div>
           </>
         )}
-
       </div>
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Manrope:wght@400;500;600;700&display=swap');
-        
         .font-serif { font-family: 'Cormorant Garamond', serif; }
         .font-sans { font-family: 'Manrope', sans-serif; }
-        
         .scrollbar-none::-webkit-scrollbar { display: none; }
         .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+        .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
   );

@@ -46,7 +46,6 @@ const extractPopularIsbns = () => {
       .on('data', (row) => {
         summary.totalRatingsProcessed++;
         
-        // Normalize checking across header naming conventions (ISBN, Book-ISBN, etc.)
         const rawIsbn = row.ISBN || row['Book-ISBN'] || row['book_isbn'];
         const isbn = sanitizeValue(rawIsbn);
         
@@ -113,10 +112,9 @@ const streamAndInsertMatchedBooks = (db, topIsbnsSet) => {
           if (isbn && topIsbnsSet.has(isbn)) {
             summary.booksMatched++;
 
-            if (!processedTabIsolator(isbn)) {
+            if (!processedIsbns.has(isbn)) {
               processedIsbns.add(isbn);
               
-              // Map incoming data safely, handling common standard naming formats
               const title = sanitizeValue(row.Title || row['Book-Title'] || row.title);
               const author = sanitizeValue(row.Author || row['Book-Author'] || row.author);
               const publisher = sanitizeValue(row.Publisher || row.publisher);
@@ -152,7 +150,7 @@ const streamAndInsertMatchedBooks = (db, topIsbnsSet) => {
                 db.run('ROLLBACK');
                 return reject(commitErr);
               }
-              console.log('Finished.');
+              console.log('Finished streaming datasets cleanly.');
               resolve();
             });
           });
@@ -162,10 +160,6 @@ const streamAndInsertMatchedBooks = (db, topIsbnsSet) => {
           db.run('ROLLBACK');
           reject(err);
         });
-
-      function processedTabIsolator(isbn) {
-        return processedIsbns.has(isbn);
-      }
     });
   });
 };
@@ -176,16 +170,23 @@ const executeImportPipeline = async () => {
   try {
     const topIsbnsSet = await extractPopularIsbns();
 
-    db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READWRITE, (err) => {
-      if (err) {
-        throw new Error(`Failed to bind targeted working bookwise.db catalog file: ${err.message}`);
-      }
-    });
+    // Promisify database connection logic safely
+    db = await new Promise((resolve, reject) => {
+  const instance = new sqlite3.Database(
+    DB_PATH, 
+    sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, // 🌟 ये फ्लैग फ़ाइल गायब होने पर खुद उसे बना देगा!
+    (err) => {
+      if (err) reject(new Error(`Failed to bind targeted working bookwise.db catalog file: ${err.message}`));
+      else resolve(instance);
+    }
+  );
+});
 
     // Enforce high performance journal modes for quick operational writing updates
-    db.run('PRAGMA synchronous = OFF');
-    db.run('PRAGMA journal_mode = MEMORY');
+    await new Promise((res) => db.run('PRAGMA synchronous = OFF', res));
+    await new Promise((res) => db.run('PRAGMA journal_mode = MEMORY', res));
 
+    // Wait until the entire batch streams completely before moving forward
     await streamAndInsertMatchedBooks(db, topIsbnsSet);
 
     const timeTaken = ((Date.now() - summary.startTime) / 1000).toFixed(2);
@@ -204,6 +205,7 @@ const executeImportPipeline = async () => {
     if (db) {
       db.close((err) => {
         if (err) console.error('Error closing archival register instance database:', err.message);
+        else console.log('Database instance released cleanly.');
       });
     }
   }

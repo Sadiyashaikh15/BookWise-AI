@@ -1,5 +1,5 @@
 /**
- * BookDetail.jsx — BookWise Hardcover Detail View Redesign (Enriched Metadata & Tracking)
+ * BookDetail.jsx — BookWise Hardcover Detail View (Smart Vault & Auth Corrected)
  * Stack: React + Tailwind v4 + Soft CSS Shadows
  * Aesthetic: Opening a vintage collection log under a warm desk lamp
  */
@@ -21,8 +21,24 @@ const BookDetail = () => {
   const [error, setError] = useState(null);
   const [imgError, setImgError] = useState(false);
 
+  // 🟢 Phase 4 Smart Vault UI States
+  const [showVaultOptions, setShowVaultOptions] = useState(false);
+  const [savedReason, setSavedReason] = useState('Self Growth');
+  const [isVaultSaving, setIsVaultSaving] = useState(false);
+  const [vaultSuccessMessage, setVaultSuccessMessage] = useState('');
+
   const fallbackImage =
     'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?q=80&w=400&h=600&auto=format&fit=crop';
+
+  const vaultCategories = [
+    'Placement', 
+    'Career', 
+    'Self Growth', 
+    'College', 
+    'Mental Health', 
+    'Entertainment', 
+    'Skill Development'
+  ];
 
   useEffect(() => {
     // Reset state parameters cleanly when id routing updates
@@ -31,25 +47,28 @@ const BookDetail = () => {
     setImgError(false);
     setBook(null);
     setRelated([]);
+    setShowVaultOptions(false);
+    setVaultSuccessMessage('');
 
     const fetchComprehensiveBookData = async () => {
       try {
-        // Fetch book details and related recommendations concurrently via service layer
-        const [bookData, relatedData] = await Promise.all([
-          getBook(id),
-          getRelatedBooks(id)
-        ]);
+        const activeToken = localStorage.getItem('jwt_token');
 
+        // 1. Safe Individual Loading Block for Primary Book Document
+        const bookData = await getBook(id);
         const currentBook = bookData?.book || bookData;
 
         if (currentBook) {
           setBook(currentBook);
           
-          // 🟢 Issue 5: Track View History Event silently in the backend database
+          // Issue 5: Track View History Event silently in the backend database
           if (user) {
             fetch('http://localhost:5000/api/track/view', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${activeToken}`
+              },
               body: JSON.stringify({ user_id: user.id, book_id: currentBook.id })
             }).catch(trackErr => console.log("Quiet view tracking catch:", trackErr));
           }
@@ -57,19 +76,71 @@ const BookDetail = () => {
           throw new Error('This volume does not exist in our physical indexes.');
         }
 
-        if (relatedData) {
-          setRelated(relatedData.books || relatedData || []);
+        // 2. Isolated Secondary Fetch Block for Related Suggestions Panel (Prevents 404 UI Crash)
+        try {
+          const relatedData = await getRelatedBooks(id);
+          if (relatedData) {
+            setRelated(relatedData.books || relatedData || []);
+          }
+        } catch (relatedErr) {
+          console.warn("Non-fatal peripheral shelf load failure:", relatedErr.message);
+          setRelated([]); // Safe empty fallback matrix
         }
+
       } catch (err) {
-        setError(err.message);
+        setError(err.message || 'Failed to resolve book profile information.');
         console.error('BookDetail fetch error:', err);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchComprehensiveBookData();
+    if (id) {
+      fetchComprehensiveBookData();
+    }
   }, [id, user]);
+
+  // ─── PHASE 4: SMART VAULT CONTEXTUAL SUBMISSION CONTROL ────────────────────
+  const handleSmartVaultSave = async () => {
+    if (!user) {
+      alert("Please cross the sanctuary gate and log in to commit logs.");
+      return;
+    }
+
+    try {
+      setIsVaultSaving(true);
+      const activeToken = localStorage.getItem('jwt_token');
+
+      // 🔒 Fixed: Passing full Bearer Authorization Token headers to pass backend checks
+      const response = await fetch('http://localhost:5000/api/vault/save', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          book_id: book.id,
+          saved_reason: savedReason
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setVaultSuccessMessage(`Archived to your ${savedReason} Ledger!`);
+        setTimeout(() => {
+          setShowVaultOptions(false);
+          setVaultSuccessMessage('');
+        }, 2000);
+      } else {
+        alert(data.message || "Failed to commit log parameters into vault schema.");
+      }
+    } catch (err) {
+      console.error("Smart Vault serialization failure:", err);
+    } finally {
+      setIsVaultSaving(false);
+    }
+  };
 
   // ─── LOADING STATE ─────────────────────────────────────────────────────────
   if (isLoading) {
@@ -87,12 +158,12 @@ const BookDetail = () => {
   if (error || !book) {
     return (
       <div className="min-h-screen bg-[#F8F3EA] flex flex-col items-center justify-center py-24 px-4 text-center">
-        <div className="bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl p-10 max-w-sm shadow-xl relative">
+        <div className="w-full max-w-sm bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl p-10 shadow-xl relative">
           <span className="text-4xl block mb-4">📭</span>
           <h2 className="font-serif text-xl font-black text-[#3E3024] mb-2">Sanctuary Sync Error</h2>
-          <p className="text-xs text-[#B66A50] font-medium mb-6">{error || 'Failed to resolve book profile information.'}</p>
+          <p className="text-xs text-[#B66A50] font-medium mb-6">{error || 'Access denied or network breakdown: Status 404'}</p>
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/dashboard')}
             className="px-6 py-3 bg-[#B66A50] text-[#FFFDF8] rounded-full font-sans text-xs font-bold uppercase tracking-wider shadow-xs hover:bg-[#A25B42] transition-colors cursor-pointer"
           >
             ← Step Backward
@@ -118,7 +189,6 @@ const BookDetail = () => {
 
       {/* ─── MAIN HARDCOVER DESCRIPTION DISPLAY SHEET ──────────────────────── */}
       <div className="bg-[#FFFDF8] border-b border-[#3E3024]/10 shadow-xs relative">
-        {/* Subtle lined notebook paper strip background overlay */}
         <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3E3024 1px, transparent 1px)', backgroundSize: '100% 28px' }} />
         
         <div className="max-w-6xl mx-auto px-6 py-12 relative z-10">
@@ -134,7 +204,6 @@ const BookDetail = () => {
                   className="w-full h-full object-cover"
                   onError={() => setImgError(true)}
                 />
-                {/* Book spine line overlay edge shading */}
                 <div className="absolute left-0 inset-y-0 w-2.5 bg-gradient-to-r from-black/20 via-black/5 to-transparent border-r border-white/5" />
               </div>
             </div>
@@ -166,7 +235,6 @@ const BookDetail = () => {
                 </div>
               )}
 
-              {/* 🟢 Issue 7: Enriched Volume Description Text Summary */}
               {book.description && (
                 <div className="pt-2 max-w-2xl text-left">
                   <p className="text-xs sm:text-sm text-[#3E3024]/70 font-medium leading-relaxed font-sans border-l-2 border-[#556B2F]/20 pl-4 italic">
@@ -175,7 +243,7 @@ const BookDetail = () => {
                 </div>
               )}
 
-              {/* 🟢 Issue 7: Inlined Core Specifications Matrix (Enhanced with new data fields) */}
+              {/* Inlined Core Specifications Matrix */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 w-full max-w-2xl pt-4">
                 {[
                   { label: 'Cluster Genre', val: book.genre || '—' },
@@ -192,7 +260,7 @@ const BookDetail = () => {
                 ))}
               </div>
 
-              {/* 🟢 Issue 7: Comma-Separated Subjects Keyword Fingerprints Badges */}
+              {/* Subject Keyword Badges */}
               {book.subjects && (
                 <div className="pt-2 w-full max-w-2xl text-left">
                   <p className="text-[9px] font-bold text-[#3E3024]/40 uppercase tracking-widest mb-2 font-sans">Subject Fingerprints</p>
@@ -206,22 +274,71 @@ const BookDetail = () => {
                 </div>
               )}
 
-              {/* Functional Dashboard Action Buttons Controls */}
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-6 w-full">
+              {/* Functional Button Controls Container */}
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-6 w-full">
                 <button
                   onClick={() => navigate(-1)}
                   className="px-5 py-3 rounded-full border border-[#3E3024]/10 bg-[#FFFDF8] text-[#3E3024]/70 hover:bg-[#F3E6D0] font-sans text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
                 >
                   ← Go Back
                 </button>
+
+                {/* 🟢 Contextual Vault Saving Ribbon */}
+                <div className="relative inline-block text-left">
+                  {showVaultOptions ? (
+                    <div className="flex flex-col sm:flex-row items-center gap-2 bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl sm:rounded-full p-2 animate-fadeIn shadow-md">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#3E3024]/50 pl-2">Why are you saving this?</span>
+                      <select
+                        value={savedReason}
+                        onChange={(e) => setSavedReason(e.target.value)}
+                        disabled={isVaultSaving}
+                        className="bg-[#F8F3EA] border border-[#3E3024]/10 rounded-full px-3 py-1.5 text-xs font-medium text-[#3E3024] focus:outline-none"
+                      >
+                        {vaultCategories.map((cat) => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                      
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={handleSmartVaultSave}
+                          disabled={isVaultSaving}
+                          className="px-4 py-1.5 bg-[#556B2F] text-[#FFFDF8] rounded-full text-xs font-bold uppercase tracking-wider hover:bg-[#435524] transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          {isVaultSaving ? 'Archiving...' : 'Commit'}
+                        </button>
+                        <button
+                          onClick={() => setShowVaultOptions(false)}
+                          className="px-3 py-1.5 border border-[#3E3024]/10 rounded-full text-xs font-bold text-[#3E3024]/60 hover:bg-[#3E3024]/5 cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowVaultOptions(true)}
+                      className="px-6 py-3 rounded-full bg-[#556B2F] text-[#F8F3EA] font-sans text-xs font-bold uppercase tracking-wider shadow-md hover:bg-[#435524] transition-all cursor-pointer active:scale-98"
+                    >
+                      + Add to Vault
+                    </button>
+                  )}
+
+                  {vaultSuccessMessage && (
+                    <div className="absolute top-full left-0 mt-2 text-xs font-bold text-[#556B2F] animate-pulse">
+                      ✦ {vaultSuccessMessage}
+                    </div>
+                  )}
+                </div>
               </div>
+
             </div>
 
           </div>
         </div>
       </div>
 
-      {/* ─── RELATED RECOMMENDATIONS SECTION (Similarity Scoring Bound) ─── */}
+      {/* ─── RELATED RECOMMENDATIONS SECTION ─── */}
       <div className="max-w-6xl mx-auto px-6 py-16 space-y-8">
         <div>
           <h2 className="font-serif text-xl sm:text-2xl font-black text-[#3E3024] tracking-tight">
@@ -239,7 +356,6 @@ const BookDetail = () => {
             ))}
           </div>
         ) : (
-          /* Empty Cluster Fallback box wrapper styling */
           <div className="text-center py-16 bg-[#FFFDF8] border border-[#3E3024]/10 rounded-2xl max-w-md mx-auto shadow-2xs">
             <p className="font-serif text-base font-bold text-[#3E3024]/60 italic">
               No peripheral matching volumes found.
@@ -259,6 +375,12 @@ const BookDetail = () => {
         
         .font-serif { font-family: 'Cormorant Garamond', serif; }
         .font-sans { font-family: 'Manrope', sans-serif; }
+
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
       `}</style>
     </div>
   );

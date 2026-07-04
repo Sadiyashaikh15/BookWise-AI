@@ -1,0 +1,13 @@
+# Ignore frontend and backend node modules globally
+node_modules/
+book-recommendation-backend/node_modules/
+book-recommendation-frontend/node_modules/
+
+# Ignore local environment keys and secrets
+.env
+book-recommendation-backend/.env
+book-recommendation-frontend/.env
+
+# Ignore large local binary databases
+*.db
+book-recommendation-backend/database/bookwise.db
