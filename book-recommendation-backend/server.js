@@ -3,7 +3,7 @@ const express = require("express");
 const Database = require("better-sqlite3");
 const cors = require("cors");
 const path = require("path");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const verifyJWT = require("./middleware/authMiddleware");
 
